@@ -31,8 +31,11 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
-        <Link to="/" className="truncate font-serif text-xl tracking-wide sm:text-2xl">
-          Events Multimedia <span className="text-accent">GH</span>
+        <Link to="/" className="flex items-center gap-2 truncate">
+          <img src="/logo.jpg" alt="Events Multimedia GH" className="h-9 w-auto rounded-sm" />
+          <span className="hidden font-serif text-xl tracking-wide sm:inline sm:text-2xl">
+            Events Multimedia <span className="text-accent">GH</span>
+          </span>
         </Link>
         <nav className="hidden items-center gap-10 md:flex">
           {links.map((l) => (

@@ -6,9 +6,12 @@ export function SiteFooter() {
     <footer className="border-t border-border bg-background">
       <div className="mx-auto grid max-w-7xl gap-10 px-6 py-14 md:grid-cols-3 md:gap-12 md:py-16">
         <div>
-          <p className="font-serif text-2xl">
-            Events Multimedia <span className="text-accent">GH</span>
-          </p>
+          <div className="flex items-center gap-2">
+            <img src="/logo.jpg" alt="Events Multimedia GH" className="h-8 w-auto rounded-sm" />
+            <p className="font-serif text-2xl">
+              Events Multimedia <span className="text-accent">GH</span>
+            </p>
+          </div>
           <p className="mt-3 max-w-xs text-sm text-muted-foreground">
             Wedding, portrait and event photography in Accra and across Ghana.
           </p>

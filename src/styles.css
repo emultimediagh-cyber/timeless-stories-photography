@@ -78,40 +78,51 @@
 
 :root {
   --radius: 0.25rem;
-  --background: oklch(0.98 0.005 75);
-  --foreground: oklch(0.18 0.005 60);
-  --card: oklch(0.995 0.003 75);
-  --card-foreground: oklch(0.18 0.005 60);
-  --popover: oklch(0.995 0.003 75);
-  --popover-foreground: oklch(0.18 0.005 60);
-  --primary: oklch(0.18 0.005 60);
+  /* Brand colors from the Events Multimedia logo:
+     Gold #FFC400, Amber #D98200, Black #08090D, Silver #D9DDE5, Warm grey #8A8065 */
+
+  /* Background — warm off-white (keeps the current light theme) */
+  --background: oklch(0.975 0.005 75);
+  /* Foreground — near-black from the logo */
+  --foreground: oklch(0.18 0.01 70);
+  /* Card — slightly lighter warm off-white */
+  --card: oklch(0.99 0.003 75);
+  --card-foreground: oklch(0.18 0.01 70);
+  --popover: oklch(0.99 0.003 75);
+  --popover-foreground: oklch(0.18 0.01 70);
+  /* Primary — the near-black from the logo */
+  --primary: oklch(0.18 0.01 70);
   --primary-foreground: oklch(0.98 0.005 75);
+  /* Secondary — warm grey */
   --secondary: oklch(0.95 0.008 75);
-  --secondary-foreground: oklch(0.18 0.005 60);
+  --secondary-foreground: oklch(0.18 0.01 70);
   --muted: oklch(0.95 0.008 75);
-  --muted-foreground: oklch(0.5 0.01 60);
-  --accent: oklch(0.66 0.09 70);
-  --accent-foreground: oklch(0.99 0 0);
+  --muted-foreground: oklch(0.5 0.015 65);
+  /* Accent — the gold from the logo */
+  --accent: oklch(0.75 0.16 85);
+  --accent-foreground: oklch(0.1 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.98 0 0);
-  --border: oklch(0.89 0.01 75);
-  --input: oklch(0.89 0.01 75);
-  --ring: oklch(0.66 0.09 70);
+  --border: oklch(0.9 0.01 75);
+  --input: oklch(0.9 0.01 75);
+  /* Ring — the gold accent */
+  --ring: oklch(0.75 0.16 85);
   --overlay: oklch(0.1 0 0 / 0.55);
   --on-image: oklch(0.98 0.005 75);
-  --chart-1: oklch(0.66 0.09 70);
+  /* Chart colors — gold/amber palette */
+  --chart-1: oklch(0.75 0.16 85);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.98 0.005 75);
-  --sidebar-foreground: oklch(0.18 0.005 60);
-  --sidebar-primary: oklch(0.18 0.005 60);
+  --sidebar: oklch(0.975 0.005 75);
+  --sidebar-foreground: oklch(0.18 0.01 70);
+  --sidebar-primary: oklch(0.18 0.01 70);
   --sidebar-primary-foreground: oklch(0.98 0.005 75);
   --sidebar-accent: oklch(0.95 0.008 75);
-  --sidebar-accent-foreground: oklch(0.18 0.005 60);
-  --sidebar-border: oklch(0.89 0.01 75);
-  --sidebar-ring: oklch(0.66 0.09 70);
+  --sidebar-accent-foreground: oklch(0.18 0.01 70);
+  --sidebar-border: oklch(0.9 0.01 75);
+  --sidebar-ring: oklch(0.75 0.16 85);
 }
 
 @layer base {

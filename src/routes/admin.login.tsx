@@ -30,7 +30,10 @@ function AdminLogin() {
     <main className="flex min-h-screen items-center justify-center bg-secondary px-6">
       <form onSubmit={submit} className="w-full max-w-sm space-y-6 border border-border bg-card p-10">
         <div>
-          <Link to="/" className="font-serif text-2xl">Events Multimedia <span className="text-accent">GH</span></Link>
+          <Link to="/" className="flex items-center gap-2">
+            <img src="/logo.jpg" alt="Events Multimedia GH" className="h-9 w-auto rounded-sm" />
+            <span className="font-serif text-2xl">Events Multimedia <span className="text-accent">GH</span></span>
+          </Link>
           <p className="mt-1 text-sm text-muted-foreground">Studio admin</p>
         </div>
         <div className="space-y-2"><Label htmlFor="email">Email</Label><Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></div>

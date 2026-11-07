@@ -66,7 +66,10 @@ function Admin() {
     <main className="min-h-screen bg-secondary">
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex min-h-16 max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-3">
-          <Link to="/" className="font-serif text-xl">Events Multimedia <span className="text-accent">GH</span></Link>
+          <Link to="/" className="flex items-center gap-2">
+            <img src="/logo.jpg" alt="Events Multimedia GH" className="h-7 w-auto rounded-sm" />
+            <span className="font-serif text-xl">Events Multimedia <span className="text-accent">GH</span></span>
+          </Link>
           <div className="flex flex-wrap items-center gap-2">
             <Input
               type="password"
