@@ -31,7 +31,7 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-6">
-        <Link to="/" className="font-serif text-2xl tracking-wide">
+        <Link to="/" className="truncate font-serif text-xl tracking-wide sm:text-2xl">
           Events Multimedia <span className="text-accent">GH</span>
         </Link>
         <nav className="hidden items-center gap-10 md:flex">
@@ -46,12 +46,12 @@ export function SiteHeader() {
             </Link>
           ))}
         </nav>
-        <button className="md:hidden" aria-label="Menu" onClick={() => setOpen((o) => !o)}>
+        <button className="-mr-2 shrink-0 p-2 md:hidden" aria-label="Menu" onClick={() => setOpen((o) => !o)}>
           {open ? <X /> : <Menu />}
         </button>
       </div>
       {open && (
-        <nav className="flex flex-col gap-6 border-t border-border px-6 py-8 md:hidden">
+        <nav className="flex h-[calc(100svh-5rem)] flex-col justify-center gap-8 border-t border-border bg-background px-6 md:hidden">
           {links.map((l) => (
             <Link key={l.to} to={l.to} className="font-serif text-3xl">
               {l.label}

@@ -33,7 +33,7 @@ function Rates() {
           <Reveal key={p.id} className="h-full">
             <div
               className={cn(
-                "flex h-full flex-col border p-10",
+                "flex h-full flex-col border p-8 md:p-10",
                 p.highlighted ? "border-primary bg-primary text-primary-foreground md:scale-[1.04] shadow-xl" : "border-border bg-card",
               )}
             >

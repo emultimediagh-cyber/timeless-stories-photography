@@ -2,7 +2,7 @@ export function SectionHeading({ eyebrow, title, center }: { eyebrow: string; ti
   return (
     <div className={center ? "text-center" : ""}>
       <p className="text-xs uppercase tracking-[0.3em] text-accent">{eyebrow}</p>
-      <h2 className="mt-4 text-4xl md:text-6xl">{title}</h2>
+      <h2 className="mt-4 text-[2.5rem] leading-tight md:text-6xl">{title}</h2>
     </div>
   );
 }
