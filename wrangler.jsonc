@@ -1,0 +1,11 @@
+{
+  // KV namespace for the gallery photo index.
+  // This is merged with the generated .output/server/wrangler.json on every
+  // Cloudflare Workers Builds deploy, so the GALLERY_KV binding is never lost.
+  "kv_namespaces": [
+    {
+      "binding": "GALLERY_KV",
+      "id": "14b36c8c907c42efb85766f723f645b5"
+    }
+  ]
+}
