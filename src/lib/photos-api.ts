@@ -71,11 +71,17 @@ async function listPhotos(env: WorkerEnv): Promise<Response> {
 
   const upstream = await callCloudinary(`/resources/by_asset_folder?${query}`, env);
   if (!upstream.ok) {
-    return json({ configured: true, error: `Cloudinary returned ${upstream.status}` }, 502);
+    const detail = (await upstream.text()).slice(0, 300);
+    console.error("Cloudinary list failed", upstream.status, detail);
+    return json({ configured: true, error: `Cloudinary returned ${upstream.status}`, detail }, 502);
   }
 
-  const data = (await upstream.json()) as { resources?: CloudinaryResource[] };
-  return json({ configured: true, photos: (data.resources ?? []).map(resourceToPhoto) });
+  try {
+    const data = (await upstream.json()) as { resources?: CloudinaryResource[] };
+    return json({ configured: true, photos: (data.resources ?? []).map(resourceToPhoto) });
+  } catch {
+    return json({ configured: true, error: "Cloudinary returned an unreadable response" }, 502);
+  }
 }
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -182,8 +188,10 @@ export async function handlePhotosApi(request: Request, env: WorkerEnv): Promise
   if (request.method === "GET") {
     try {
       return await listPhotos(env);
-    } catch {
-      return json({ configured: true, error: "Could not load photos" }, 502);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error("Cloudinary list threw", detail);
+      return json({ configured: true, error: "Could not load photos", detail }, 502);
     }
   }
 
