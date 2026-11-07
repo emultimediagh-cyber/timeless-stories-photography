@@ -33,19 +33,13 @@ const select = "h-9 rounded-md border border-input bg-background px-2 text-sm";
 
 function Admin() {
   const navigate = useNavigate();
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    if (localStorage.getItem("emgh_admin") !== "1") navigate({ to: "/admin/login" });
-    else setReady(true);
-  }, [navigate]);
-  if (!ready) return null;
 
   return (
     <main className="min-h-screen bg-secondary">
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link to="/" className="font-serif text-xl">Events Multimedia <span className="text-accent">GH</span></Link>
-          <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem("emgh_admin"); navigate({ to: "/admin/login" }); }}>Sign out</Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/" })}>View site</Button>
         </div>
       </header>
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
