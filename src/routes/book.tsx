@@ -7,7 +7,7 @@ import { SectionHeading, btnPrimary } from "@/components/site/SectionHeading";
 
 export const Route = createFileRoute("/book")({
   validateSearch: (s: Record<string, unknown>): { package?: string | undefined } => ({
-    package: typeof s.package === "string" ? s.package : undefined,
+    package: typeof s["package"] === "string" ? s["package"] : undefined,
   }),
   head: () => ({
     meta: [
