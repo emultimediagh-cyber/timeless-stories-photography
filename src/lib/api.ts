@@ -80,7 +80,7 @@ export async function getPackages(): Promise<Package[]> {
   return read(KEYS.packages, seedPackages);
 }
 
-export async function savePackage(pkg: Omit<Package, "id"> & { id?: string }): Promise<Package> {
+export async function savePackage(pkg: Omit<Package, "id"> & { id?: string | undefined }): Promise<Package> {
   const all = await getPackages();
   const saved: Package = { ...pkg, id: pkg.id ?? id() };
   const exists = all.some((p) => p.id === saved.id);

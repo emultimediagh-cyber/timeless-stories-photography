@@ -41,10 +41,10 @@ export function Lightbox({
       aria-modal="true"
       className="lb-in fixed inset-0 z-50 flex items-center justify-center bg-foreground/95"
       onClick={onClose}
-      onTouchStart={(e) => (touchX.current = e.touches[0].clientX)}
+      onTouchStart={(e) => (touchX.current = e.touches[0]?.clientX ?? null)}
       onTouchEnd={(e) => {
         if (touchX.current === null) return;
-        const dx = e.changedTouches[0].clientX - touchX.current;
+        const dx = (e.changedTouches[0]?.clientX ?? touchX.current) - touchX.current;
         if (Math.abs(dx) > 50) (dx > 0 ? prev : next)();
         touchX.current = null;
       }}
