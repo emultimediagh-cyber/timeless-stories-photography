@@ -37,11 +37,11 @@ function json(body: unknown, status = 200): Response {
 }
 
 function cloudinaryReady(env: WorkerEnv): boolean {
-  return Boolean(env.CLOUDINARY_API_KEY && env.CLOUDINARY_API_SECRET);
+  return Boolean(env?.CLOUDINARY_API_KEY && env?.CLOUDINARY_API_SECRET);
 }
 
 function adminAllowed(request: Request, env: WorkerEnv): boolean {
-  return Boolean(env.ADMIN_PASSWORD) && request.headers.get("x-admin-key") === env.ADMIN_PASSWORD;
+  return Boolean(env?.ADMIN_PASSWORD) && request.headers.get("x-admin-key") === env.ADMIN_PASSWORD;
 }
 
 async function callCloudinary(path: string, env: WorkerEnv, init: RequestInit = {}): Promise<Response> {

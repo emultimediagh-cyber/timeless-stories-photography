@@ -8,6 +8,19 @@ type ServerEntry = {
   fetch: (request: Request, env: WorkerEnv, ctx: unknown) => Promise<Response> | Response;
 };
 
+/**
+ * Nitro's Cloudflare runtime saves the Worker bindings on globalThis.__env__
+ * at the start of every request, but its Vite service loader calls our fetch
+ * handler with only the Request. Read the global as a fallback so secrets are
+ * actually available here.
+ */
+type EnvGlobal = typeof globalThis & { __env__?: WorkerEnv };
+
+function resolveEnv(env: WorkerEnv | undefined): WorkerEnv {
+  if (env) return env;
+  return (globalThis as EnvGlobal).__env__ ?? {};
+}
+
 let serverEntryPromise: Promise<ServerEntry> | undefined;
 
 async function getServerEntry(): Promise<ServerEntry> {
@@ -49,15 +62,16 @@ function isH3SwallowedErrorBody(body: string): boolean {
 // CompressionStream) or set content-encoding here or in a server route: the body gets encoded
 // twice and renders garbled.
 export default {
-  async fetch(request: Request, env: WorkerEnv, ctx: unknown) {
+  async fetch(request: Request, env: WorkerEnv | undefined, ctx: unknown) {
     try {
+      const workerEnv = resolveEnv(env);
       // Photo catalog API is handled here so it can use the Worker's private
       // secrets. Everything else goes to the SSR app.
-      const apiResponse = await handlePhotosApi(request, env);
+      const apiResponse = await handlePhotosApi(request, workerEnv);
       if (apiResponse) return apiResponse;
 
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
+      const response = await handler.fetch(request, workerEnv, ctx);
       return await normalizeCatastrophicSsrResponse(response);
     } catch (error) {
       console.error(error);
