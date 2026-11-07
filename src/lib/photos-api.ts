@@ -324,7 +324,7 @@ export async function handlePhotosApi(request: Request, env: WorkerEnv): Promise
       envKeys,
       globalKeys,
       hasGalleryKV: Boolean(env?.GALLERY_KV),
-      globalHasGalleryKV: Boolean(globalEnv?.GALLERY_KV),
+      globalHasGalleryKV: Boolean(globalEnv?.["GALLERY_KV"]),
       storageReady: storageReady(env),
     });
   }
