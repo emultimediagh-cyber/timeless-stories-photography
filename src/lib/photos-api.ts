@@ -58,34 +58,90 @@ function formBody(fields: Record<string, string>): URLSearchParams {
   return new URLSearchParams(fields);
 }
 
-/** GET /api/photos — public, shared list of photos. */
-async function listPhotos(env: WorkerEnv): Promise<Response> {
+interface RawResource extends CloudinaryResource {
+  asset_folder?: string;
+  folder?: string;
+  created_at?: string;
+}
+
+async function fetchResources(env: WorkerEnv, path: string) {
+  const upstream = await callCloudinary(path, env);
+  if (!upstream.ok) {
+    const detail = (await upstream.text()).slice(0, 300);
+    console.error("Cloudinary list failed", upstream.status, detail);
+    return { status: upstream.status, resources: [] as RawResource[], detail };
+  }
+  try {
+    const data = (await upstream.json()) as { resources?: RawResource[] };
+    return { status: upstream.status, resources: data.resources ?? [], detail: "" };
+  } catch {
+    return { status: upstream.status, resources: [] as RawResource[], detail: "unreadable JSON" };
+  }
+}
+
+/** Non-secret metadata, used only when ?debug=1 is requested. */
+function summarize(resources: RawResource[]) {
+  return resources.slice(0, 20).map((r) => ({
+    public_id: r.public_id,
+    tags: r.tags ?? [],
+    asset_folder: r.asset_folder ?? null,
+    folder: r.folder ?? null,
+    created_at: r.created_at ?? null,
+  }));
+}
+
+/**
+ * GET /api/photos — public, shared list of photos.
+ *
+ * Every upload is tagged `emgh`, so we find our photos by tag rather than by
+ * asset folder. Cloudinary's asset-folder query depends on folder mode and on
+ * the preset's folder setting; tags work regardless of where the file lands.
+ */
+async function listPhotos(request: Request, env: WorkerEnv): Promise<Response> {
   if (!cloudinaryReady(env)) return json({ configured: false, photos: [] });
 
-  const query = new URLSearchParams({
+  const debug = new URL(request.url).searchParams.get("debug") === "1";
+
+  const general = await fetchResources(
+    env,
+    "/resources/image?max_results=500&tags=true&context=true&direction=desc",
+  );
+  const tagged = general.resources.filter(
+    (r) => r.tags?.includes(SITE_TAG) || r.asset_folder === CLOUDINARY_ASSET_FOLDER,
+  );
+
+  // Fallback for assets that somehow missed the tag but landed in our folder.
+  const folderQuery = new URLSearchParams({
     asset_folder: CLOUDINARY_ASSET_FOLDER,
     tags: "true",
     context: "true",
     max_results: "500",
     direction: "desc",
   });
+  const folder = tagged.length > 0
+    ? { status: 200, resources: [] as RawResource[], detail: "" }
+    : await fetchResources(env, `/resources/by_asset_folder?${folderQuery}`);
 
-  const upstream = await callCloudinary(`/resources/by_asset_folder?${query}`, env);
-  // Cloudinary returns 404 "Folder doesn't exist" until the first photo is
-  // uploaded. That's an empty gallery, not a failure.
-  if (upstream.status === 404) return json({ configured: true, photos: [] });
-  if (!upstream.ok) {
-    const detail = (await upstream.text()).slice(0, 300);
-    console.error("Cloudinary list failed", upstream.status, detail);
-    return json({ configured: true, error: `Cloudinary returned ${upstream.status}`, detail }, 502);
+  const photos = (tagged.length > 0 ? tagged : folder.resources).map(resourceToPhoto);
+
+  if (general.status >= 400 && general.status !== 404 && photos.length === 0) {
+    return json({ configured: true, error: `Cloudinary returned ${general.status}`, detail: general.detail }, 502);
   }
 
-  try {
-    const data = (await upstream.json()) as { resources?: CloudinaryResource[] };
-    return json({ configured: true, photos: (data.resources ?? []).map(resourceToPhoto) });
-  } catch {
-    return json({ configured: true, error: "Cloudinary returned an unreadable response" }, 502);
-  }
+  return json({
+    configured: true,
+    photos,
+    ...(debug
+      ? {
+          debug: {
+            generalStatus: general.status,
+            general: summarize(general.resources),
+            folderStatus: folder.status,
+            folder: summarize(folder.resources),
+          },
+        }
+      : {}),
+  });
 }
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -204,7 +260,7 @@ export async function handlePhotosApi(request: Request, env: WorkerEnv): Promise
 
   if (request.method === "GET") {
     try {
-      return await listPhotos(env);
+      return await listPhotos(request, env);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
       console.error("Cloudinary list threw", detail);
