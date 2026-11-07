@@ -318,12 +318,13 @@ export async function handlePhotosApi(request: Request, env: WorkerEnv): Promise
   // Debug endpoint — shows which env keys are visible to the Worker (values hidden).
   if (path === "/api/debug-env" && request.method === "GET") {
     const envKeys = Object.keys(env ?? {});
-    const globalKeys = Object.keys((globalThis as Record<string, unknown>).__env__ ?? {});
+    const globalEnv = (globalThis as Record<string, unknown>)["__env__"] as Record<string, unknown> | undefined;
+    const globalKeys = Object.keys(globalEnv ?? {});
     return json({
       envKeys,
       globalKeys,
       hasGalleryKV: Boolean(env?.GALLERY_KV),
-      globalHasGalleryKV: Boolean((globalThis as Record<string, unknown>).__env__?.GALLERY_KV),
+      globalHasGalleryKV: Boolean(globalEnv?.GALLERY_KV),
       storageReady: storageReady(env),
     });
   }
