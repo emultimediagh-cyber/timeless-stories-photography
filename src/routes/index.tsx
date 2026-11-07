@@ -103,7 +103,7 @@ function Home() {
       <section className="border-y border-border">
         <div className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-24 md:grid-cols-2 md:py-32">
           <Reveal>
-            <PhotoImage src={IMAGES.about} alt="Lead photographer portrait" ratio={4 / 5} />
+            <PhotoImage src="/about.jpg" alt="Founder of Events Multimedia GH" ratio={2 / 3} />
           </Reveal>
           <Reveal className="md:pl-12">
             <SectionHeading eyebrow="About" title="Quiet artistry, honest emotion." />

@@ -17,7 +17,6 @@ const u = (id: string) => `https://images.unsplash.com/${id}?w=1600&q=80&auto=fo
 
 export const IMAGES = {
   hero: u("photo-1519741497674-611481863552"),
-  about: u("photo-1531384441138-2736e62e0919"),
   book: u("photo-1606216794074-735e91aa2c92"),
   cta: u("photo-1511285560929-80b456fea0bc"),
 };
