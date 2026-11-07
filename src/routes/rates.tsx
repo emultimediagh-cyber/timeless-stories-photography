@@ -34,7 +34,7 @@ function Rates() {
             <div
               className={cn(
                 "flex h-full flex-col border p-10",
-                p.highlighted ? "border-primary bg-primary text-primary-foreground md:-my-6 md:py-16" : "border-border bg-card",
+                p.highlighted ? "border-primary bg-primary text-primary-foreground md:scale-[1.04] shadow-xl" : "border-border bg-card",
               )}
             >
               {p.highlighted && <p className="mb-4 text-xs uppercase tracking-[0.3em] text-accent">Most popular</p>}
