@@ -23,6 +23,7 @@ import type { Category } from "../types";
 export interface WorkerEnv {
   CLOUDINARY_API_KEY?: string;
   CLOUDINARY_API_SECRET?: string;
+  CLOUDINARY_UPLOAD_PRESET?: string;
   ADMIN_PASSWORD?: string;
 }
 
@@ -108,13 +109,16 @@ async function uploadPhoto(request: Request, env: WorkerEnv): Promise<Response> 
 
   const outgoing = new FormData();
   outgoing.append("file", file);
+  // Unsigned uploads are authorised by the upload preset, not by an API key.
+  // Only these extra fields are allowed in an unsigned request.
+  outgoing.append("upload_preset", env?.CLOUDINARY_UPLOAD_PRESET || "emgh_portfolio");
   outgoing.append("asset_folder", CLOUDINARY_ASSET_FOLDER);
   outgoing.append("tags", tags.join(","));
   outgoing.append("context", encodeAlt(alt));
-  outgoing.append("use_filename", "true");
-  outgoing.append("unique_filename", "true");
 
-  const upstream = await callCloudinary("/image/upload", env, { method: "POST", body: outgoing });
+  // No Authorization header here: sending one makes Cloudinary treat this as a
+  // signed upload, which this product environment currently denies ("create").
+  const upstream = await fetch(`${API_BASE}/image/upload`, { method: "POST", body: outgoing });
   const payload = (await upstream.json()) as Partial<CloudinaryResource> & {
     error?: { message?: string };
   };
