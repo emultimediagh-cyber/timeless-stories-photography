@@ -70,6 +70,9 @@ async function listPhotos(env: WorkerEnv): Promise<Response> {
   });
 
   const upstream = await callCloudinary(`/resources/by_asset_folder?${query}`, env);
+  // Cloudinary returns 404 "Folder doesn't exist" until the first photo is
+  // uploaded. That's an empty gallery, not a failure.
+  if (upstream.status === 404) return json({ configured: true, photos: [] });
   if (!upstream.ok) {
     const detail = (await upstream.text()).slice(0, 300);
     console.error("Cloudinary list failed", upstream.status, detail);
