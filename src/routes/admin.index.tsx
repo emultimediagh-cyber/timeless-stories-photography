@@ -48,9 +48,9 @@ function Admin() {
           <Button variant="ghost" size="sm" onClick={() => { localStorage.removeItem("emgh_admin"); navigate({ to: "/admin/login" }); }}>Sign out</Button>
         </div>
       </header>
-      <div className="mx-auto max-w-6xl px-6 py-10">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         <Tabs defaultValue="photos">
-          <TabsList>
+          <TabsList className="w-full sm:w-auto">
             <TabsTrigger value="photos">Photos</TabsTrigger>
             <TabsTrigger value="rates">Rates</TabsTrigger>
             <TabsTrigger value="bookings">Bookings</TabsTrigger>

@@ -4,7 +4,7 @@ import { CONTACT } from "@/lib/api";
 export function SiteFooter() {
   return (
     <footer className="border-t border-border bg-background">
-      <div className="mx-auto grid max-w-7xl gap-12 px-6 py-16 md:grid-cols-3">
+      <div className="mx-auto grid max-w-7xl gap-10 px-6 py-14 md:grid-cols-3 md:gap-12 md:py-16">
         <div>
           <p className="font-serif text-2xl">
             Events Multimedia <span className="text-accent">GH</span>

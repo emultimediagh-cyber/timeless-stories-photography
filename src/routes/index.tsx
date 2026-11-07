@@ -43,13 +43,13 @@ function Home() {
 
   return (
     <main>
-      <section className="relative h-screen min-h-[600px] w-full overflow-hidden">
+      <section className="relative h-[100svh] min-h-[560px] w-full overflow-hidden">
         <img src={IMAGES.hero} alt="Bride and groom at golden hour" className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute inset-0 bg-overlay" />
         <div className="relative z-10 mx-auto flex h-full max-w-7xl flex-col justify-end px-6 pb-24 text-on-image md:pb-32">
           <p className="text-xs uppercase tracking-[0.35em] opacity-80">Accra · Ghana</p>
-          <h1 className="mt-6 max-w-4xl text-5xl leading-[1.05] md:text-8xl">Timeless stories, captured with elegance.</h1>
-          <div className="mt-10 flex flex-wrap gap-4">
+          <h1 className="mt-6 max-w-4xl text-[2.75rem] leading-[1.05] sm:text-6xl md:text-8xl">Timeless stories, captured with elegance.</h1>
+          <div className="mt-10 grid gap-3 sm:flex sm:flex-wrap sm:gap-4">
             <Link to="/gallery" className={btnOutline}>View portfolio</Link>
             <Link to="/book" search={{ package: undefined }} className="inline-flex items-center justify-center bg-on-image px-8 py-4 text-xs uppercase tracking-[0.25em] text-foreground transition hover:bg-accent hover:text-accent-foreground">
               Book a session

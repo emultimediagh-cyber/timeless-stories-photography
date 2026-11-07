@@ -54,7 +54,10 @@ function Book() {
       <div className="relative hidden md:block">
         <img src={IMAGES.book} alt="Couple at golden hour" className="sticky top-0 h-screen w-full object-cover" />
       </div>
-      <div className="px-6 pb-24 pt-36 md:px-16">
+      <div className="relative mt-20 h-56 overflow-hidden md:hidden">
+        <img src={IMAGES.book} alt="" className="h-full w-full object-cover" />
+      </div>
+      <div className="px-6 pb-24 pt-12 md:px-16 md:pt-36">
         {done ? (
           <div className="max-w-md">
             <SectionHeading eyebrow="Thank you" title={`We'll be in touch, ${done.name.split(" ")[0]}.`} />
@@ -85,7 +88,7 @@ function Book() {
                 </label>
               </div>
               <label className="grid gap-1"><span className={label}>Message</span><textarea rows={4} className={field} value={form.message} onChange={set("message")} /></label>
-              <button type="submit" className={`${btnPrimary} justify-self-start`}>Send request</button>
+              <button type="submit" className={`${btnPrimary} w-full sm:w-auto sm:justify-self-start`}>Send request</button>
             </form>
           </>
         )}
