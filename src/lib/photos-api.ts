@@ -48,6 +48,7 @@ export interface WorkerEnv {
   CLOUDINARY_API_KEY?: string;
   CLOUDINARY_API_SECRET?: string;
   CLOUDINARY_UPLOAD_PRESET?: string;
+  [key: string]: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -313,6 +314,19 @@ async function updatePhoto(request: Request, env: WorkerEnv): Promise<Response> 
  */
 export async function handlePhotosApi(request: Request, env: WorkerEnv): Promise<Response | null> {
   const path = new URL(request.url).pathname;
+
+  // Debug endpoint — shows which env keys are visible to the Worker (values hidden).
+  if (path === "/api/debug-env" && request.method === "GET") {
+    const envKeys = Object.keys(env ?? {});
+    const globalKeys = Object.keys((globalThis as Record<string, unknown>).__env__ ?? {});
+    return json({
+      envKeys,
+      globalKeys,
+      hasGalleryKV: Boolean(env?.GALLERY_KV),
+      globalHasGalleryKV: Boolean((globalThis as Record<string, unknown>).__env__?.GALLERY_KV),
+      storageReady: storageReady(env),
+    });
+  }
 
   // Admin status — never returns secret values, only yes/no flags.
   if (path === "/api/admin-status" && request.method === "GET") {
