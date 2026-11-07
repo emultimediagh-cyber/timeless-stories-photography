@@ -3,6 +3,8 @@ export type Category = "Weddings" | "Portraits" | "Events" | "Family";
 export interface Photo {
   id: string;
   url: string;
+  /** Cloudinary public ID, kept for a future server-side delete flow. */
+  publicId?: string;
   alt: string;
   category: Category;
   /** width / height, used to reserve space before the image loads */

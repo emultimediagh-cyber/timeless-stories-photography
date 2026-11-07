@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { Photo } from "@/types";
+import { cloudinaryUrl } from "@/lib/cloudinary";
 
 export function Lightbox({
   photos,
@@ -57,7 +58,7 @@ export function Lightbox({
       </button>
       <img
         key={photo.id}
-        src={photo.url}
+        src={cloudinaryUrl(photo.url, { width: 2000, crop: "limit" })}
         alt={photo.alt}
         className="lb-in max-h-[88vh] max-w-[90vw] object-contain"
         onClick={(e) => e.stopPropagation()}

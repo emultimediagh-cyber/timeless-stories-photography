@@ -1,6 +1,11 @@
+import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import type { Booking, BookingInput, BookingStatus, Category, Package, Photo } from "@/types";
 
-/** Placeholder data layer. Swap these functions for real API calls later. */
+/**
+ * Placeholder data layer. Photos are stored in Cloudinary; their metadata
+ * (category, alt text, featured) still lives in localStorage for now.
+ * Swap these functions for a real API when the metadata store is decided.
+ */
 
 export const CONTACT = {
   phone: "+233 20 000 0000",
@@ -62,10 +67,31 @@ export async function getPhotos(): Promise<Photo[]> {
   return read(KEYS.photos, seedPhotos);
 }
 
-export async function uploadPhoto(input: { url: string; alt: string; category: Category; ratio?: number }): Promise<Photo> {
+export async function uploadPhoto(input: { url: string; alt: string; category: Category; ratio?: number; publicId?: string }): Promise<Photo> {
   const photo: Photo = { id: id(), ratio: input.ratio ?? 3 / 2, ...input };
   write(KEYS.photos, [photo, ...(await getPhotos())]);
   return photo;
+}
+
+/**
+ * Upload a real file to Cloudinary, then record its metadata locally.
+ * Replaces the old FileReader/base64 approach, which blew the localStorage
+ * quota after a couple of photos.
+ */
+export async function uploadPhotoFile(file: File, category: Category): Promise<Photo> {
+  const result = await uploadImageToCloudinary(file);
+  const alt = file.name
+    .replace(/\.[^.]+$/, "")
+    .replace(/[-_]+/g, " ")
+    .trim() || "Portfolio photograph";
+
+  return uploadPhoto({
+    url: result.secureUrl,
+    publicId: result.publicId,
+    alt,
+    category,
+    ratio: result.height > 0 ? result.width / result.height : 3 / 2,
+  });
 }
 
 export async function updatePhotoCategory(photoId: string, category: Category): Promise<void> {

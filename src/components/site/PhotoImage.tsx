@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { cloudinarySrcSet, cloudinaryUrl } from "@/lib/cloudinary";
 
 export function PhotoImage({
   src,
@@ -13,10 +14,15 @@ export function PhotoImage({
   className?: string;
   zoom?: boolean;
 }) {
+  const srcSet = cloudinarySrcSet(src);
+
   return (
     <div className={cn("group relative overflow-hidden bg-muted", className)} style={{ aspectRatio: ratio }}>
       <img
-        src={src}
+        src={cloudinaryUrl(src, { width: 1024, crop: "limit" })}
+        {...(srcSet
+          ? { srcSet, sizes: "(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw" }
+          : {})}
         alt={alt}
         loading="lazy"
         decoding="async"

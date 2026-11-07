@@ -4,8 +4,9 @@ import { Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import {
   deletePackage, deletePhoto, formatGHS, getBookings, getPackages, getPhotos,
-  savePackage, updateBookingStatus, updatePhotoCategory, uploadPhoto,
+  savePackage, updateBookingStatus, updatePhotoCategory, uploadPhotoFile,
 } from "@/lib/api";
+import { cloudinaryUrl } from "@/lib/cloudinary";
 import type { Booking, BookingStatus, Category, Package, Photo } from "@/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -61,26 +62,22 @@ function Admin() {
 function PhotosTab() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [category, setCategory] = useState<Category>("Weddings");
+  const [uploading, setUploading] = useState(false);
   const reload = () => getPhotos().then(setPhotos);
   useEffect(() => { reload(); }, []);
 
-  const onFile = (file?: File) => {
+  const onFile = async (file?: File) => {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const img = new Image();
-      img.onload = async () => {
-        try {
-          await uploadPhoto({ url: reader.result as string, alt: file.name, category, ratio: img.width / img.height });
-          toast.success("Photo uploaded");
-          reload();
-        } catch {
-          toast.error("Image too large for browser storage");
-        }
-      };
-      img.src = reader.result as string;
-    };
-    reader.readAsDataURL(file);
+    setUploading(true);
+    try {
+      await uploadPhotoFile(file, category);
+      toast.success("Photo uploaded to Cloudinary");
+      await reload();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -91,14 +88,24 @@ function PhotosTab() {
             {categories.map((c) => <option key={c}>{c}</option>)}
           </select>
         </div>
-        <div className="space-y-2"><Label htmlFor="file">Upload photo</Label>
-          <Input id="file" type="file" accept="image/*" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = ""; }} />
+        <div className="space-y-2"><Label htmlFor="file">{uploading ? "Uploading…" : "Upload photo"}</Label>
+          <Input
+            id="file"
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/avif"
+            disabled={uploading}
+            onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ""; }}
+          />
         </div>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Photos are stored in Cloudinary. Deleting a photo here removes it from the site but leaves the
+        asset in Cloudinary until server-side deletion is wired up.
+      </p>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {photos.map((p) => (
           <div key={p.id} className="overflow-hidden rounded-md border border-border bg-card">
-            <div className="aspect-square bg-muted"><img src={p.url} alt={p.alt} loading="lazy" className="h-full w-full object-cover" /></div>
+            <div className="aspect-square bg-muted"><img src={cloudinaryUrl(p.url, { width: 400, height: 400, crop: "fill" })} alt={p.alt} loading="lazy" className="h-full w-full object-cover" /></div>
             <div className="flex items-center gap-2 p-2">
               <select className={`${select} flex-1`} value={p.category} onChange={async (e) => { await updatePhotoCategory(p.id, e.target.value as Category); reload(); }}>
                 {categories.map((c) => <option key={c}>{c}</option>)}
