@@ -66,16 +66,17 @@ interface RawResource extends CloudinaryResource {
 
 async function fetchResources(env: WorkerEnv, path: string) {
   const upstream = await callCloudinary(path, env);
+  const text = await upstream.text();
+  const raw = text.slice(0, 600);
   if (!upstream.ok) {
-    const detail = (await upstream.text()).slice(0, 300);
-    console.error("Cloudinary list failed", upstream.status, detail);
-    return { status: upstream.status, resources: [] as RawResource[], detail };
+    console.error("Cloudinary list failed", upstream.status, raw);
+    return { status: upstream.status, resources: [] as RawResource[], detail: raw, raw };
   }
   try {
-    const data = (await upstream.json()) as { resources?: RawResource[] };
-    return { status: upstream.status, resources: data.resources ?? [], detail: "" };
+    const data = JSON.parse(text) as { resources?: RawResource[] };
+    return { status: upstream.status, resources: data.resources ?? [], detail: "", raw };
   } catch {
-    return { status: upstream.status, resources: [] as RawResource[], detail: "unreadable JSON" };
+    return { status: upstream.status, resources: [] as RawResource[], detail: "unreadable JSON", raw };
   }
 }
 
@@ -119,7 +120,7 @@ async function listPhotos(request: Request, env: WorkerEnv): Promise<Response> {
     direction: "desc",
   });
   const folder = tagged.length > 0
-    ? { status: 200, resources: [] as RawResource[], detail: "" }
+    ? { status: 200, resources: [] as RawResource[], detail: "", raw: "" }
     : await fetchResources(env, `/resources/by_asset_folder?${folderQuery}`);
 
   const photos = (tagged.length > 0 ? tagged : folder.resources).map(resourceToPhoto);
@@ -136,8 +137,10 @@ async function listPhotos(request: Request, env: WorkerEnv): Promise<Response> {
           debug: {
             generalStatus: general.status,
             general: summarize(general.resources),
+            generalRaw: general.raw,
             folderStatus: folder.status,
             folder: summarize(folder.resources),
+            folderRaw: folder.raw,
           },
         }
       : {}),
