@@ -157,7 +157,7 @@ function PhotosTab({ adminReady }: { adminReady: boolean }) {
           <input type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} />
           Show on home page
         </label>
-        <div className="space-y-2"><Label htmlFor="file">{uploading ? "Uploading…" : "Upload photo"}</Label>
+        <div className="space-y-2"><Label htmlFor="file">{uploading ? "Uploading…" : "Upload photo or video"}</Label>
           <Input
             id="file"
             type="file"

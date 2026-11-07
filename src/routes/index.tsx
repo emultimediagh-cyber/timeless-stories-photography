@@ -37,9 +37,13 @@ const testimonials = [
 function Home() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [open, setOpen] = useState<number | null>(null);
+  const [openVideo, setOpenVideo] = useState<number | null>(null);
   useEffect(() => {
-    getPhotos().then((all) => setPhotos(all.filter((p) => p.featured).slice(0, 6)));
+    getPhotos().then((all) => setPhotos(all));
   }, []);
+
+  const featuredPhotos = photos.filter((p) => p.featured && p.type !== "video").slice(0, 6);
+  const videos = photos.filter((p) => p.type === "video").slice(0, 6);
 
   return (
     <main>
@@ -64,7 +68,35 @@ function Home() {
           <Link to="/gallery" className="text-xs uppercase tracking-[0.25em] underline-offset-8 hover:underline">See full gallery →</Link>
         </Reveal>
         <Reveal>
-          <MasonryGrid photos={photos} onOpen={setOpen} />
+          <MasonryGrid photos={featuredPhotos} onOpen={setOpen} />
+        </Reveal>
+      </section>
+
+      <section className="mx-auto max-w-7xl px-6 py-24 md:py-32">
+        <Reveal className="mb-14 flex flex-wrap items-end justify-between gap-6">
+          <SectionHeading eyebrow="Films" title="Watch our stories" />
+          <Link to="/gallery" search={{ media: "video" }} className="text-xs uppercase tracking-[0.25em] underline-offset-8 hover:underline">See all videos →</Link>
+        </Reveal>
+        <Reveal>
+          {videos.length > 0 ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {videos.map((v, i) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => setOpenVideo(i)}
+                  className="block w-full overflow-hidden rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label={`Play ${v.alt}`}
+                >
+                  <PhotoImage src={v.url} alt={v.alt} ratio={v.ratio} type="video" />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="py-16 text-center text-sm text-muted-foreground">
+              Cinematic films coming soon — upload your first reel from the admin panel.
+            </p>
+          )}
         </Reveal>
       </section>
 
@@ -121,7 +153,8 @@ function Home() {
         </Reveal>
       </section>
 
-      {open !== null && <Lightbox photos={photos} index={open} onClose={() => setOpen(null)} onChange={setOpen} />}
+      {open !== null && <Lightbox photos={featuredPhotos} index={open} onClose={() => setOpen(null)} onChange={setOpen} />}
+      {openVideo !== null && <Lightbox photos={videos} index={openVideo} onClose={() => setOpenVideo(null)} onChange={setOpenVideo} />}
     </main>
   );
 }
