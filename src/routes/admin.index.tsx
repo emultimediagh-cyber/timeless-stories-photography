@@ -1,10 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Trash2, Pencil } from "lucide-react";
+import { Trash2, Pencil, Star } from "lucide-react";
 import { toast } from "sonner";
 import {
-  deletePackage, deletePhoto, formatGHS, getBookings, getPackages, getPhotos,
-  savePackage, updateBookingStatus, updatePhotoCategory, uploadPhotoFile,
+  deletePackage, deletePhoto, formatGHS, getAdminKey, getBookings, getPackages, getPhotos,
+  savePackage, setAdminKey, setPhotoFeatured, updateBookingStatus, updatePhotoCategory, uploadPhotoFile,
 } from "@/lib/api";
 import { cloudinaryUrl } from "@/lib/cloudinary";
 import type { Booking, BookingStatus, Category, Package, Photo } from "@/types";
@@ -34,13 +34,25 @@ const select = "h-9 rounded-md border border-input bg-background px-2 text-sm";
 
 function Admin() {
   const navigate = useNavigate();
+  const [key, setKey] = useState("");
+  useEffect(() => { setKey(getAdminKey()); }, []);
 
   return (
     <main className="min-h-screen bg-secondary">
       <header className="border-b border-border bg-card">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
+        <div className="mx-auto flex min-h-16 max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-3">
           <Link to="/" className="font-serif text-xl">Events Multimedia <span className="text-accent">GH</span></Link>
-          <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/" })}>View site</Button>
+          <div className="flex items-center gap-2">
+            <Input
+              type="password"
+              placeholder="Admin key"
+              aria-label="Admin key"
+              value={key}
+              onChange={(e) => { setKey(e.target.value); setAdminKey(e.target.value); }}
+              className="h-9 w-40"
+            />
+            <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/" })}>View site</Button>
+          </div>
         </div>
       </header>
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
@@ -59,9 +71,13 @@ function Admin() {
   );
 }
 
+const reportError = (error: unknown) =>
+  toast.error(error instanceof Error ? error.message : "Something went wrong");
+
 function PhotosTab() {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [category, setCategory] = useState<Category>("Weddings");
+  const [featured, setFeatured] = useState(false);
   const [uploading, setUploading] = useState(false);
   const reload = () => getPhotos().then(setPhotos);
   useEffect(() => { reload(); }, []);
@@ -70,11 +86,11 @@ function PhotosTab() {
     if (!file) return;
     setUploading(true);
     try {
-      await uploadPhotoFile(file, category);
+      await uploadPhotoFile(file, category, featured);
       toast.success("Photo uploaded to Cloudinary");
       await reload();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Upload failed");
+      reportError(error);
     } finally {
       setUploading(false);
     }
@@ -88,6 +104,10 @@ function PhotosTab() {
             {categories.map((c) => <option key={c}>{c}</option>)}
           </select>
         </div>
+        <label className="flex items-center gap-2 pb-2 text-sm">
+          <input type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} />
+          Show on home page
+        </label>
         <div className="space-y-2"><Label htmlFor="file">{uploading ? "Uploading…" : "Upload photo"}</Label>
           <Input
             id="file"
@@ -99,18 +119,57 @@ function PhotosTab() {
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        Photos are stored in Cloudinary. Deleting a photo here removes it from the site but leaves the
-        asset in Cloudinary until server-side deletion is wired up.
+        Photos and their details are stored in Cloudinary, so every visitor sees the same gallery.
+        Changing or deleting a photo needs the Admin key in the header above. Sample photos can&apos;t be edited.
       </p>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {photos.map((p) => (
           <div key={p.id} className="overflow-hidden rounded-md border border-border bg-card">
             <div className="aspect-square bg-muted"><img src={cloudinaryUrl(p.url, { width: 400, height: 400, crop: "fill" })} alt={p.alt} loading="lazy" className="h-full w-full object-cover" /></div>
-            <div className="flex items-center gap-2 p-2">
-              <select className={`${select} flex-1`} value={p.category} onChange={async (e) => { await updatePhotoCategory(p.id, e.target.value as Category); reload(); }}>
+            <div className="flex items-center gap-1 p-2">
+              <select
+                className={`${select} flex-1`}
+                value={p.category}
+                disabled={!p.publicId}
+                onChange={async (e) => {
+                  if (!p.publicId) return;
+                  try {
+                    await updatePhotoCategory(p.publicId, e.target.value as Category);
+                    await reload();
+                  } catch (error) { reportError(error); }
+                }}
+              >
                 {categories.map((c) => <option key={c}>{c}</option>)}
               </select>
-              <Button size="icon" variant="ghost" aria-label="Delete" onClick={async () => { await deletePhoto(p.id); reload(); }}>
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label={p.featured ? "Remove from home page" : "Show on home page"}
+                title={p.featured ? "Remove from home page" : "Show on home page"}
+                disabled={!p.publicId}
+                onClick={async () => {
+                  if (!p.publicId) return;
+                  try {
+                    await setPhotoFeatured(p.publicId, !p.featured);
+                    await reload();
+                  } catch (error) { reportError(error); }
+                }}
+              >
+                <Star className={p.featured ? "h-4 w-4 fill-accent text-accent" : "h-4 w-4"} />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                aria-label="Delete"
+                disabled={!p.publicId}
+                onClick={async () => {
+                  if (!p.publicId) return;
+                  try {
+                    await deletePhoto(p.publicId);
+                    await reload();
+                  } catch (error) { reportError(error); }
+                }}
+              >
                 <Trash2 className="h-4 w-4" />
               </Button>
             </div>

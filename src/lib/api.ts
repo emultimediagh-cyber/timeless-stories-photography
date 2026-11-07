@@ -1,10 +1,8 @@
-import { uploadImageToCloudinary } from "@/lib/cloudinary";
 import type { Booking, BookingInput, BookingStatus, Category, Package, Photo } from "@/types";
 
 /**
- * Placeholder data layer. Photos are stored in Cloudinary; their metadata
- * (category, alt text, featured) still lives in localStorage for now.
- * Swap these functions for a real API when the metadata store is decided.
+ * Photos live in Cloudinary and the shared list is served by /api/photos.
+ * Packages and bookings are still browser-local placeholders for now.
  */
 
 export const CONTACT = {
@@ -24,6 +22,7 @@ export const IMAGES = {
   cta: u("photo-1511285560929-80b456fea0bc"),
 };
 
+/** Shown until the shared photo list is configured or the first real photo is uploaded. */
 const seedPhotos: Photo[] = [
   { id: "p1", url: u("photo-1519741497674-611481863552"), alt: "Bride and groom embrace", category: "Weddings", ratio: 2 / 3, featured: true },
   { id: "p2", url: u("photo-1531123897727-8f129e1688ce"), alt: "Portrait of a woman in soft light", category: "Portraits", ratio: 2 / 3, featured: true },
@@ -47,7 +46,8 @@ const seedPackages: Package[] = [
   { id: "luxury", name: "Luxury", price: 9000, description: "Full-day storytelling with heirloom keepsakes.", inclusions: ["Full-day coverage", "2 photographers + videographer", "500+ edited photos", "Highlight film", "Premium photo album"] },
 ];
 
-const KEYS = { photos: "emgh_photos", packages: "emgh_packages", bookings: "emgh_bookings" };
+const KEYS = { packages: "emgh_packages", bookings: "emgh_bookings" };
+const ADMIN_KEY_STORAGE = "emgh_admin_key";
 
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -63,43 +63,89 @@ function write<T>(key: string, value: T) {
 }
 const id = () => Math.random().toString(36).slice(2, 10);
 
+/** The admin key lives only in this browser tab and is never sent to other visitors. */
+export function getAdminKey(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.sessionStorage.getItem(ADMIN_KEY_STORAGE) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setAdminKey(value: string): void {
+  if (typeof window !== "undefined") window.sessionStorage.setItem(ADMIN_KEY_STORAGE, value);
+}
+
+async function photoApi(path: string, init: RequestInit = {}): Promise<Response> {
+  const headers = new Headers(init.headers);
+  const key = getAdminKey();
+  if (key) headers.set("x-admin-key", key);
+
+  const response = await fetch(path, { ...init, headers });
+  if (!response.ok) {
+    let message = `Request failed (${response.status})`;
+    try {
+      const data = (await response.json()) as { error?: string };
+      if (data.error) message = data.error;
+    } catch {
+      // keep the status-based message
+    }
+    throw new Error(message);
+  }
+  return response;
+}
+
+/** Shared gallery list. Falls back to sample photos until real ones exist. */
 export async function getPhotos(): Promise<Photo[]> {
-  return read(KEYS.photos, seedPhotos);
+  try {
+    const response = await fetch("/api/photos");
+    if (!response.ok) return seedPhotos;
+    const data = (await response.json()) as { configured?: boolean; photos?: Photo[] };
+    if (!data.configured) return seedPhotos;
+    return data.photos && data.photos.length > 0 ? data.photos : seedPhotos;
+  } catch {
+    return seedPhotos;
+  }
 }
 
-export async function uploadPhoto(input: { url: string; alt: string; category: Category; ratio?: number; publicId?: string }): Promise<Photo> {
-  const photo: Photo = { id: id(), ratio: input.ratio ?? 3 / 2, ...input };
-  write(KEYS.photos, [photo, ...(await getPhotos())]);
-  return photo;
-}
-
-/**
- * Upload a real file to Cloudinary, then record its metadata locally.
- * Replaces the old FileReader/base64 approach, which blew the localStorage
- * quota after a couple of photos.
- */
-export async function uploadPhotoFile(file: File, category: Category): Promise<Photo> {
-  const result = await uploadImageToCloudinary(file);
+/** Upload goes through our own server so only someone with the Admin key can add photos. */
+export async function uploadPhotoFile(file: File, category: Category, featured = false): Promise<Photo> {
   const alt = file.name
     .replace(/\.[^.]+$/, "")
     .replace(/[-_]+/g, " ")
     .trim() || "Portfolio photograph";
 
-  return uploadPhoto({
-    url: result.secureUrl,
-    publicId: result.publicId,
-    alt,
-    category,
-    ratio: result.height > 0 ? result.width / result.height : 3 / 2,
+  const form = new FormData();
+  form.append("file", file);
+  form.append("category", category);
+  form.append("alt", alt);
+  form.append("featured", featured ? "1" : "0");
+
+  const response = await photoApi("/api/photos", { method: "POST", body: form });
+  const data = (await response.json()) as { photo: Photo };
+  return data.photo;
+}
+
+export async function updatePhotoCategory(publicId: string, category: Category): Promise<void> {
+  await photoApi("/api/photos", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ publicId, category }),
   });
 }
 
-export async function updatePhotoCategory(photoId: string, category: Category): Promise<void> {
-  write(KEYS.photos, (await getPhotos()).map((p) => (p.id === photoId ? { ...p, category } : p)));
+export async function setPhotoFeatured(publicId: string, featured: boolean): Promise<void> {
+  await photoApi("/api/photos", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ publicId, featured }),
+  });
 }
 
-export async function deletePhoto(photoId: string): Promise<void> {
-  write(KEYS.photos, (await getPhotos()).filter((p) => p.id !== photoId));
+/** Removes the photo from Cloudinary as well as from the shared list. */
+export async function deletePhoto(publicId: string): Promise<void> {
+  await photoApi(`/api/photos?publicId=${encodeURIComponent(publicId)}`, { method: "DELETE" });
 }
 
 export async function getPackages(): Promise<Package[]> {
