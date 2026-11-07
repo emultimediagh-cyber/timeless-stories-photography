@@ -173,9 +173,12 @@ function PhotosTab({ adminReady }: { adminReady: boolean }) {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {photos.map((p) => (
           <div key={p.id} className="overflow-hidden rounded-md border border-border bg-card">
-            <div className="aspect-square bg-muted">
+            <div className="relative aspect-square bg-muted">
               {p.type === "video" ? (
-                <video src={p.url} className="h-full w-full object-cover" muted />
+                <>
+                  <video src={p.url} className="h-full w-full object-cover" muted preload="metadata" />
+                  <span className="absolute left-2 top-2 rounded bg-foreground/70 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-white">Video</span>
+                </>
               ) : (
                 <img src={p.url} alt={p.alt} loading="lazy" className="h-full w-full object-cover" />
               )}

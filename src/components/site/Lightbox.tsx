@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { Photo } from "@/types";
+import { cloudinaryUrl } from "@/lib/cloudinary";
 
 export function Lightbox({
   photos,
@@ -35,6 +36,8 @@ export function Lightbox({
   if (!photo) return null;
   const btn = "absolute z-10 p-3 text-on-image/80 transition hover:text-on-image";
   const isVideo = photo.type === "video";
+  const isCloudinary = photo.url.includes("res.cloudinary.com/");
+  const fullImgUrl = isCloudinary ? cloudinaryUrl(photo.url, { width: 2000, crop: "limit" }) : photo.url;
 
   return (
     <div
@@ -61,6 +64,7 @@ export function Lightbox({
           key={photo.id}
           src={photo.url}
           controls
+          autoPlay
           playsInline
           className="lb-in max-h-[88vh] max-w-[90vw] object-contain"
           onClick={(e) => e.stopPropagation()}
@@ -68,7 +72,7 @@ export function Lightbox({
       ) : (
         <img
           key={photo.id}
-          src={photo.url}
+          src={fullImgUrl}
           alt={photo.alt}
           className="lb-in max-h-[88vh] max-w-[90vw] object-contain"
           onClick={(e) => e.stopPropagation()}

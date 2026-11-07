@@ -33,7 +33,7 @@ function Gallery() {
 
   return (
     <main className="mx-auto max-w-7xl px-6 pb-24 pt-36">
-      <Reveal><SectionHeading eyebrow="Portfolio" title="The gallery" /></Reveal>
+      <Reveal><SectionHeading eyebrow="Portfolio" title="Gallery" /></Reveal>
       <div className="mt-10 mb-12 flex flex-wrap gap-3">
         {filters.map((f) => (
           <button

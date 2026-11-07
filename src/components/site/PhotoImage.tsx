@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import { cloudinarySrcSet, cloudinaryUrl } from "@/lib/cloudinary";
+import { Play } from "lucide-react";
 
 export function PhotoImage({
   src,
@@ -16,8 +17,8 @@ export function PhotoImage({
   zoom?: boolean;
   type?: "image" | "video";
 }) {
-  // R2 URLs, /cdn/ URLs, and Unsplash URLs pass through directly.
   // Only Cloudinary delivery URLs get transformation parameters.
+  // R2/Unsplash/other URLs pass through directly.
   const isCloudinary = src.includes("res.cloudinary.com/");
   const srcSet = isCloudinary ? cloudinarySrcSet(src) : undefined;
   const imgSrc = isCloudinary ? cloudinaryUrl(src, { width: 1024, crop: "limit" }) : src;
@@ -29,12 +30,18 @@ export function PhotoImage({
           src={src}
           muted
           playsInline
-          controls
+          preload="metadata"
           className={cn(
             "absolute inset-0 h-full w-full object-cover",
             zoom && "transition-transform duration-[1500ms] ease-out group-hover:scale-105",
           )}
         />
+        {/* Play icon overlay */}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-foreground/40 backdrop-blur-sm transition group-hover:bg-foreground/60">
+            <Play className="h-5 w-5 fill-white text-white" />
+          </div>
+        </div>
       </div>
     );
   }
