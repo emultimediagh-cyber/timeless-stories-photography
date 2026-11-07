@@ -2,58 +2,67 @@
  * Photo / media catalog API, handled by the Cloudflare Worker before the SSR
  * app sees the request.
  *
- * STORAGE MODEL (Cloudflare R2)
- * ----------------------------
- * Media is stored in an R2 bucket and the gallery list is kept as a single
- * JSON file (`gallery/index.json`) in that same bucket. This is the source of
- * truth: an upload writes the object and appends to the index immediately, so
- * the photo shows on the site the moment the upload finishes. There is no
- * dependence on any external "list my assets" API — which is exactly what was
- * unreliable with the previous Cloudinary setup.
+ * STORAGE MODEL (Cloudinary storage + Cloudflare KV index)
+ * ---------------------------------------------------------
+ * Media files (images AND videos) are uploaded to Cloudinary via the unsigned
+ * upload preset — this already works and serves from Cloudinary's CDN.
  *
- * Serving: if R2_PUBLIC_URL is set we use the bucket's public URL directly
- * (fast, CDN-cached). Otherwise media is streamed through `/cdn/<key>`, which
- * this worker serves from the same R2 binding — so it works even without a
- * public bucket configured.
+ * The gallery LIST is kept in a Cloudflare KV namespace as a single JSON value
+ * (`gallery`). This is the source of truth the site reads. Every upload appends
+ * to it immediately, so the photo shows the moment the upload finishes.
  *
- * Secrets/bindings come from the Worker environment (Cloudflare dashboard):
- *   PHOTO_BUCKET  — R2 bucket binding
- *   R2_PUBLIC_URL — optional public base URL for the bucket
- *   ADMIN_PASSWORD — required to upload/edit/delete
+ * We do NOT rely on Cloudinary's listing/Search API — that was unreliable
+ * (returned total_count>0 but empty resources[]).
+ *
+ * Environment (Cloudflare dashboard → Workers & Pages → events-multimedia-gh):
+ *   GALLERY_KV     — KV namespace binding (free, no credit card needed)
+ *   ADMIN_PASSWORD  — required to upload/edit/delete
+ *
+ * Cloudinary credentials (already set as secrets):
+ *   CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET — used for signed delete
+ *   CLOUDINARY_CLOUD_NAME                     — public, in catalog.ts
+ *   CLOUDINARY_UPLOAD_PRESET                  — optional override of "emgh_portfolio"
  */
 
-// Minimal shape of the R2 binding we use, so this compiles without the full
-// @cloudflare/workers-types in every environment.
 import type { Category, Photo } from "../types";
-import { isCategory } from "./catalog";
+import {
+  CLOUDINARY_CLOUD_NAME,
+  CLOUDINARY_ASSET_FOLDER,
+  isCategory,
+} from "./catalog";
 
-interface R2ObjectBodyLike {
-  body?: ReadableStream;
-  text(): Promise<string>;
-  json(): Promise<unknown>;
-  httpMetadata?: { contentType?: string };
-}
-interface R2Like {
-  get(key: string): Promise<R2ObjectBodyLike | null>;
-  put(
-    key: string,
-    value: Blob | string | null,
-    opts?: { customMetadata?: Record<string, string>; httpMetadata?: { contentType?: string } },
-  ): Promise<unknown>;
-  delete(key: string): Promise<unknown>;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/** Minimal KV interface — the binding we expect from Cloudflare. */
+interface KVLike {
+  get(key: string, options?: { type?: "text" | "json" }): Promise<string | null>;
+  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
+  delete(key: string): Promise<void>;
 }
 
 export interface WorkerEnv {
-  PHOTO_BUCKET?: R2Like;
-  R2_PUBLIC_URL?: string;
+  GALLERY_KV?: KVLike;
   ADMIN_PASSWORD?: string;
+  CLOUDINARY_API_KEY?: string;
+  CLOUDINARY_API_SECRET?: string;
+  CLOUDINARY_UPLOAD_PRESET?: string;
 }
 
-const INDEX_KEY = "gallery/index.json";
-const MEDIA_PREFIX = "media/";
-const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB — large enough for most videos
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const KV_KEY = "gallery";
+const UPLOAD_PRESET_DEFAULT = "emgh_portfolio";
+const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB
 const ALLOWED_IMAGE = new Set(["image/jpeg", "image/png", "image/webp", "image/avif", "image/gif"]);
 const ALLOWED_VIDEO = new Set(["video/mp4", "video/webm", "video/quicktime", "video/x-matroska"]);
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -63,65 +72,121 @@ function json(body: unknown, status = 200): Response {
 }
 
 function storageReady(env: WorkerEnv): boolean {
-  return Boolean(env?.PHOTO_BUCKET);
+  return Boolean(env?.GALLERY_KV);
 }
 
 function adminAllowed(request: Request, env: WorkerEnv): boolean {
   return Boolean(env?.ADMIN_PASSWORD) && request.headers.get("x-admin-key") === env.ADMIN_PASSWORD;
 }
 
-function publicUrl(env: WorkerEnv, key: string): string {
-  const base = (env?.R2_PUBLIC_URL ?? "").replace(/\/+$/, "");
-  if (base) return `${base}/${key}`;
-  return `/cdn/${key}`;
+function uploadPreset(env: WorkerEnv): string {
+  return env?.CLOUDINARY_UPLOAD_PRESET || UPLOAD_PRESET_DEFAULT;
 }
 
-function extFor(mime: string): string {
-  const map: Record<string, string> = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "image/avif": "avif",
-    "image/gif": "gif",
-    "video/mp4": "mp4",
-    "video/webm": "webm",
-    "video/quicktime": "mov",
-    "video/x-matroska": "mkv",
-  };
-  return map[mime] ?? "bin";
+/** Build the Basic auth header for Cloudinary Admin API calls. */
+function cloudinaryAuthHeader(env: WorkerEnv): string | null {
+  if (!env?.CLOUDINARY_API_KEY || !env?.CLOUDINARY_API_SECRET) return null;
+  return "Basic " + btoa(`${env.CLOUDINARY_API_KEY}:${env.CLOUDINARY_API_SECRET}`);
+}
+
+/** Cloudinary's upload endpoint (same for images and videos). */
+function cloudinaryUploadUrl(): string {
+  return `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`;
+}
+
+/** Cloudinary's delivery URL base for the /image/upload/ path. */
+function cloudinaryDeliveryBaseUrl(): string {
+  return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}`;
 }
 
 // ---------------------------------------------------------------------------
-// Gallery index (source of truth, stored in the bucket)
+// Gallery index (source of truth — stored in KV)
 // ---------------------------------------------------------------------------
 
-async function readIndex(bucket: R2Like): Promise<Photo[] | null> {
+async function readIndex(kv: KVLike): Promise<Photo[] | null> {
   try {
-    const obj = await bucket.get(INDEX_KEY);
-    if (!obj) return [];
-    const data = (await obj.json()) as unknown;
+    const raw = await kv.get(KV_KEY, { type: "text" });
+    if (!raw) return [];
+    const data = JSON.parse(raw) as unknown;
     return Array.isArray(data) ? (data as Photo[]) : [];
   } catch {
     return null;
   }
 }
 
-async function writeIndex(bucket: R2Like, photos: Photo[]): Promise<boolean> {
+async function writeIndex(kv: KVLike, photos: Photo[]): Promise<boolean> {
   try {
-    await bucket.put(INDEX_KEY, JSON.stringify(photos, null, 2), {
-      customMetadata: { updated: new Date().toISOString() },
-      httpMetadata: { contentType: "application/json" },
-    });
+    await kv.put(KV_KEY, JSON.stringify(photos));
     return true;
   } catch {
     return false;
   }
 }
 
-async function getPhotos(env: WorkerEnv): Promise<Photo[]> {
-  const bucket = env.PHOTO_BUCKET;
-  if (!bucket) return [];
-  return (await readIndex(bucket)) ?? [];
+// ---------------------------------------------------------------------------
+// Upload to Cloudinary (unsigned preset — works for both images and videos)
+// ---------------------------------------------------------------------------
+
+interface CloudinaryUploadResponse {
+  public_id: string;
+  secure_url: string;
+  secure_url_video?: string; // not standard, but we check just in case
+  url: string;
+  width?: number;
+  height?: number;
+  bytes?: number;
+  resource_type?: string;
+  error?: { message?: string };
+}
+
+async function uploadToCloudinary(
+  file: File,
+  env: WorkerEnv,
+  metadata: { alt: string; category: Category; featured: boolean },
+): Promise<CloudinaryUploadResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("upload_preset", uploadPreset(env));
+  form.append("asset_folder", CLOUDINARY_ASSET_FOLDER);
+  form.append("context", `alt=${encodeURIComponent(metadata.alt)}`);
+  // Tags carry category + featured so they're queryable later if needed.
+  const tags = ["emgh", `cat_${metadata.category.toLowerCase()}`];
+  if (metadata.featured) tags.push("featured");
+  form.append("tags", tags.join(","));
+
+  const response = await fetch(cloudinaryUploadUrl(), {
+    method: "POST",
+    body: form,
+  });
+
+  const data = (await response.json()) as CloudinaryUploadResponse;
+  if (!response.ok || data.error) {
+    throw new Error(data.error?.message ?? `Cloudinary upload failed (${response.status})`);
+  }
+  return data;
+}
+
+/** Delete an asset from Cloudinary via the signed Admin API. */
+async function deleteFromCloudinary(publicId: string, env: WorkerEnv): Promise<boolean> {
+  const auth = cloudinaryAuthHeader(env);
+  if (!auth) return false; // can't delete without API key/secret — but still remove from index
+
+  try {
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/destroy`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: auth,
+        },
+        body: JSON.stringify({ public_id: publicId, invalidate: true }),
+      },
+    );
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -129,19 +194,20 @@ async function getPhotos(env: WorkerEnv): Promise<Photo[]> {
 // ---------------------------------------------------------------------------
 
 /**
- * GET /api/photos — public, shared list of media. Backed by our own index, so
- * every uploaded item appears immediately.
+ * GET /api/photos — public, shared list of media. Reads from our KV index,
+ * so every uploaded item appears immediately.
  */
 async function listPhotos(env: WorkerEnv): Promise<Response> {
   if (!storageReady(env)) return json({ configured: false, photos: [] });
-  const photos = await getPhotos(env);
+  const kv = env.GALLERY_KV!;
+  const photos = (await readIndex(kv)) ?? [];
   return json({ configured: true, photos });
 }
 
-/** POST /api/photos — upload, protected by the admin key. */
+/** POST /api/photos — upload to Cloudinary, then append to KV index. */
 async function uploadPhoto(request: Request, env: WorkerEnv): Promise<Response> {
-  const bucket = env.PHOTO_BUCKET;
-  if (!bucket) return json({ error: "Media storage (R2) is not configured on the server yet." }, 503);
+  const kv = env.GALLERY_KV;
+  if (!kv) return json({ error: "Gallery storage (KV) is not configured on the server yet." }, 503);
 
   const incoming = await request.formData();
   const file = incoming.get("file");
@@ -157,54 +223,55 @@ async function uploadPhoto(request: Request, env: WorkerEnv): Promise<Response> 
   const featured = incoming.get("featured") === "1";
   const isVideo = ALLOWED_VIDEO.has(file.type);
 
-  const key = `${MEDIA_PREFIX}${crypto.randomUUID()}.${extFor(file.type)}`;
-  await bucket.put(key, file, {
-    customMetadata: {
-      category,
-      alt,
-      featured: featured ? "1" : "0",
-      type: isVideo ? "video" : "image",
-    },
-    httpMetadata: { contentType: file.type },
-  });
+  // 1. Upload the file to Cloudinary.
+  const uploaded = await uploadToCloudinary(file, env, { alt, category, featured });
+
+  // Cloudinary returns secure_url for both images and videos.
+  // For videos, the URL uses /video/upload/ instead of /image/upload/.
+  const url = uploaded.secure_url ?? uploaded.url;
+  const width = uploaded.width ?? 0;
+  const height = uploaded.height ?? 0;
 
   const photo: Photo = {
-    id: key,
-    publicId: key,
-    url: publicUrl(env, key),
+    id: uploaded.public_id,
+    publicId: uploaded.public_id,
+    url,
     alt,
     category,
-    ratio: isVideo ? 16 / 9 : 3 / 2,
+    ratio: width > 0 && height > 0 ? width / height : isVideo ? 16 / 9 : 3 / 2,
     featured,
     type: isVideo ? "video" : "image",
   };
 
-  const idx = (await readIndex(bucket)) ?? [];
+  // 2. Append to our KV index — this is what the site reads.
+  const idx = (await readIndex(kv)) ?? [];
   const next = [photo, ...idx.filter((p) => p.publicId !== photo.publicId)];
-  await writeIndex(bucket, next);
+  await writeIndex(kv, next);
 
   return json({ photo });
 }
 
-/** DELETE /api/photos?publicId=... — removes the object and the index entry. */
+/** DELETE /api/photos?publicId=... — removes from Cloudinary + KV index. */
 async function deletePhoto(request: Request, env: WorkerEnv): Promise<Response> {
-  const bucket = env.PHOTO_BUCKET;
-  if (!bucket) return json({ error: "Media storage (R2) is not configured on the server yet." }, 503);
+  const kv = env.GALLERY_KV;
+  if (!kv) return json({ error: "Gallery storage (KV) is not configured on the server yet." }, 503);
 
   const publicId = new URL(request.url).searchParams.get("publicId");
   if (!publicId) return json({ error: "Missing publicId" }, 400);
 
-  await bucket.delete(publicId);
-  const idx = (await readIndex(bucket)) ?? [];
+  // Try to delete from Cloudinary (best-effort — index removal is what matters for the site).
+  await deleteFromCloudinary(publicId, env);
+
+  const idx = (await readIndex(kv)) ?? [];
   const next = idx.filter((p) => p.publicId !== publicId);
-  await writeIndex(bucket, next);
+  await writeIndex(kv, next);
   return json({ ok: true });
 }
 
-/** PATCH /api/photos — change category or the featured flag, kept in the index. */
+/** PATCH /api/photos — change category or featured flag (KV index only). */
 async function updatePhoto(request: Request, env: WorkerEnv): Promise<Response> {
-  const bucket = env.PHOTO_BUCKET;
-  if (!bucket) return json({ error: "Media storage (R2) is not configured on the server yet." }, 503);
+  const kv = env.GALLERY_KV;
+  if (!kv) return json({ error: "Gallery storage (KV) is not configured on the server yet." }, 503);
 
   let payload: { publicId?: unknown; category?: unknown; featured?: unknown };
   try {
@@ -222,7 +289,7 @@ async function updatePhoto(request: Request, env: WorkerEnv): Promise<Response> 
   const newCategory = isCategory(payload.category) ? payload.category : undefined;
   const newFeatured = typeof payload.featured === "boolean" ? payload.featured : undefined;
 
-  const idx = (await readIndex(bucket)) ?? [];
+  const idx = (await readIndex(kv)) ?? [];
   const next: Photo[] = idx.map((p) =>
     p.publicId === publicId
       ? {
@@ -232,40 +299,27 @@ async function updatePhoto(request: Request, env: WorkerEnv): Promise<Response> 
         }
       : p,
   );
-  await writeIndex(bucket, next);
+  await writeIndex(kv, next);
   return json({ ok: true });
 }
 
+// ---------------------------------------------------------------------------
+// Router
+// ---------------------------------------------------------------------------
+
 /**
- * Returns a Response for /api/photos (and /cdn/* media), or null when the
- * request should continue to the SSR app.
+ * Returns a Response for /api/photos, or null when the request should
+ * continue to the SSR app.
  */
 export async function handlePhotosApi(request: Request, env: WorkerEnv): Promise<Response | null> {
   const path = new URL(request.url).pathname;
 
-  // Never returns secret values — only yes/no flags for the admin page.
+  // Admin status — never returns secret values, only yes/no flags.
   if (path === "/api/admin-status" && request.method === "GET") {
     return json({
       storageReady: storageReady(env),
       adminConfigured: Boolean(env?.ADMIN_PASSWORD),
       adminValid: adminAllowed(request, env),
-    });
-  }
-
-  // Serve media directly from R2 when no public bucket URL is configured.
-  if (path.startsWith("/cdn/")) {
-    const bucket = env.PHOTO_BUCKET;
-    if (!bucket) return null;
-    const key = decodeURIComponent(path.slice("/cdn/".length));
-    if (!key.startsWith(MEDIA_PREFIX) || key.includes("..")) return json({ error: "Not found" }, 404);
-    const obj = await bucket.get(key);
-    if (!obj) return json({ error: "Not found" }, 404);
-    const body: BodyInit = obj.body ?? (await obj.text());
-    return new Response(body, {
-      headers: {
-        "content-type": obj.httpMetadata?.contentType ?? "application/octet-stream",
-        "cache-control": "public, max-age=31536000, immutable",
-      },
     });
   }
 
@@ -282,7 +336,9 @@ export async function handlePhotosApi(request: Request, env: WorkerEnv): Promise
   }
 
   if (request.method === "POST" || request.method === "DELETE" || request.method === "PATCH") {
-    if (!storageReady(env)) return json({ error: "Media storage (R2) is not configured on the server yet." }, 503);
+    if (!storageReady(env)) {
+      return json({ error: "Gallery storage (KV) is not configured on the server yet." }, 503);
+    }
     if (!env?.ADMIN_PASSWORD) {
       return json({ error: "No ADMIN_PASSWORD is set in Cloudflare. Add it before managing media." }, 503);
     }
@@ -292,8 +348,9 @@ export async function handlePhotosApi(request: Request, env: WorkerEnv): Promise
     try {
       if (request.method === "POST") return await uploadPhoto(request, env);
       return request.method === "DELETE" ? await deletePhoto(request, env) : await updatePhoto(request, env);
-    } catch {
-      return json({ error: "Storage request failed" }, 502);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Storage request failed";
+      return json({ error: detail }, 502);
     }
   }
 

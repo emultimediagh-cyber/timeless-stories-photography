@@ -55,7 +55,7 @@ function Admin() {
   const message = status === null
     ? "Could not reach the server. Refresh the page and try again."
     : !status.storageReady
-      ? "R2 storage is not configured on the server yet."
+      ? "Gallery storage (KV) is not configured on the server yet. See the instructions below."
       : !status.adminConfigured
         ? "No admin password is set in Cloudflare. Add the ADMIN_PASSWORD secret — uploads and edits are disabled until then."
         : status.adminValid
@@ -165,7 +165,7 @@ function PhotosTab({ adminReady }: { adminReady: boolean }) {
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        Photos and videos are stored in Cloudflare R2, so every visitor sees the same gallery.
+        Photos and videos are stored in Cloudinary and served via a Cloudflare KV gallery index, so every visitor sees the same gallery.
         {adminReady
           ? " You can upload, change and delete real photos. Sample photos can't be edited."
           : " Get a green status message at the top of this page before you can make changes."}

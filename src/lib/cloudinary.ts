@@ -13,6 +13,7 @@ export const CLOUDINARY_CLOUD_NAME: string =
   import.meta.env["VITE_CLOUDINARY_CLOUD_NAME"] || DEFAULT_CLOUD_NAME;
 
 const DELIVERY_MARKER = "/image/upload/";
+const VIDEO_MARKER = "/video/upload/";
 
 export const RESPONSIVE_WIDTHS = [400, 640, 800, 1024, 1280, 1600, 2000] as const;
 
@@ -24,7 +25,8 @@ export interface DeliveryOptions {
 }
 
 function isCloudinarySource(source: string): boolean {
-  return source.includes(`res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}${DELIVERY_MARKER}`);
+  const base = `res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}`;
+  return source.includes(`${base}${DELIVERY_MARKER}`) || source.includes(`${base}${VIDEO_MARKER}`);
 }
 
 function buildTransformation(opts: DeliveryOptions): string {
@@ -61,9 +63,21 @@ export function cloudinaryUrl(source: string, opts: DeliveryOptions = {}): strin
     return source;
   }
 
-  const index = source.indexOf(DELIVERY_MARKER);
-  if (index === -1) return source;
-  const at = index + DELIVERY_MARKER.length;
+  // Try image marker first, then video marker.
+  const imgIdx = source.indexOf(DELIVERY_MARKER);
+  const vidIdx = source.indexOf(VIDEO_MARKER);
+  let marker: string;
+  let index: number;
+  if (imgIdx !== -1) {
+    marker = DELIVERY_MARKER;
+    index = imgIdx;
+  } else if (vidIdx !== -1) {
+    marker = VIDEO_MARKER;
+    index = vidIdx;
+  } else {
+    return source;
+  }
+  const at = index + marker.length;
   return `${source.slice(0, at)}${buildTransformation(opts)}/${versionedTail(source.slice(at))}`;
 }
 

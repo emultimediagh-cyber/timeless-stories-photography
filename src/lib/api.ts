@@ -1,8 +1,8 @@
 import type { Booking, BookingInput, BookingStatus, Category, Package, Photo } from "@/types";
 
 /**
- * Media is stored in Cloudflare R2 and served via /api/photos.
- * Packages and bookings are still browser-local placeholders for now.
+ * Media is stored in Cloudinary and the gallery index is in Cloudflare KV.
+ * Served via /api/photos. Packages and bookings are still browser-local.
  */
 
 export const CONTACT = {
@@ -162,7 +162,7 @@ export async function setPhotoFeatured(publicId: string, featured: boolean): Pro
   });
 }
 
-/** Removes the photo from R2 storage and the gallery index. */
+/** Removes the photo from Cloudinary and the KV gallery index. */
 export async function deletePhoto(publicId: string): Promise<void> {
   await photoApi(`/api/photos?publicId=${encodeURIComponent(publicId)}`, { method: "DELETE" });
 }
