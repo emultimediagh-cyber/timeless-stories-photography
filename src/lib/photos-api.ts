@@ -186,6 +186,16 @@ async function updatePhoto(request: Request, env: WorkerEnv): Promise<Response> 
  */
 export async function handlePhotosApi(request: Request, env: WorkerEnv): Promise<Response | null> {
   const path = new URL(request.url).pathname;
+
+  // Never returns secret values — only yes/no flags for the admin page.
+  if (path === "/api/admin-status" && request.method === "GET") {
+    return json({
+      cloudinaryReady: cloudinaryReady(env),
+      adminConfigured: Boolean(env?.ADMIN_PASSWORD),
+      adminValid: adminAllowed(request, env),
+    });
+  }
+
   if (path !== "/api/photos") return null;
 
   if (request.method === "GET") {
@@ -199,8 +209,13 @@ export async function handlePhotosApi(request: Request, env: WorkerEnv): Promise
   }
 
   if (request.method === "POST" || request.method === "DELETE" || request.method === "PATCH") {
-    if (!cloudinaryReady(env)) return json({ error: "Photo API is not configured yet" }, 503);
-    if (!adminAllowed(request, env)) return json({ error: "Not authorized. Enter the Admin key first." }, 401);
+    if (!cloudinaryReady(env)) return json({ error: "Cloudinary keys are not set up on the server yet." }, 503);
+    if (!env?.ADMIN_PASSWORD) {
+      return json({ error: "No ADMIN_PASSWORD is set in Cloudflare. Add it before managing photos." }, 503);
+    }
+    if (!adminAllowed(request, env)) {
+      return json({ error: "Admin key is wrong. Check the key at the top of this page." }, 401);
+    }
     try {
       if (request.method === "POST") return await uploadPhoto(request, env);
       return request.method === "DELETE" ? await deletePhoto(request, env) : await updatePhoto(request, env);

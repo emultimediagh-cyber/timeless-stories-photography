@@ -3,8 +3,9 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Trash2, Pencil, Star } from "lucide-react";
 import { toast } from "sonner";
 import {
-  deletePackage, deletePhoto, formatGHS, getAdminKey, getBookings, getPackages, getPhotos,
+  deletePackage, deletePhoto, formatGHS, getAdminKey, getAdminStatus, getBookings, getPackages, getPhotos,
   savePackage, setAdminKey, setPhotoFeatured, updateBookingStatus, updatePhotoCategory, uploadPhotoFile,
+  type AdminStatus,
 } from "@/lib/api";
 import { cloudinaryUrl } from "@/lib/cloudinary";
 import type { Booking, BookingStatus, Category, Package, Photo } from "@/types";
@@ -35,26 +36,68 @@ const select = "h-9 rounded-md border border-input bg-background px-2 text-sm";
 function Admin() {
   const navigate = useNavigate();
   const [key, setKey] = useState("");
-  useEffect(() => { setKey(getAdminKey()); }, []);
+  const [status, setStatus] = useState<AdminStatus | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  const check = async (value: string) => {
+    setChecking(true);
+    setStatus(await getAdminStatus(value));
+    setChecking(false);
+  };
+
+  useEffect(() => {
+    const saved = getAdminKey();
+    setKey(saved);
+    void check(saved);
+  }, []);
+
+  const adminReady = status?.adminValid === true;
+
+  const message = status === null
+    ? "Could not reach the server. Refresh the page and try again."
+    : !status.cloudinaryReady
+      ? "Cloudinary keys are not set up on the server yet."
+      : !status.adminConfigured
+        ? "No admin password is set in Cloudflare. Add the ADMIN_PASSWORD secret — uploads and edits are disabled until then."
+        : status.adminValid
+          ? "Admin key accepted. You can upload, edit and delete photos."
+          : "Admin key is missing or wrong. Type it above and click Check key.";
 
   return (
     <main className="min-h-screen bg-secondary">
       <header className="border-b border-border bg-card">
         <div className="mx-auto flex min-h-16 max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-3">
           <Link to="/" className="font-serif text-xl">Events Multimedia <span className="text-accent">GH</span></Link>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Input
               type="password"
               placeholder="Admin key"
               aria-label="Admin key"
               value={key}
               onChange={(e) => { setKey(e.target.value); setAdminKey(e.target.value); }}
+              onKeyDown={(e) => { if (e.key === "Enter") void check(key); }}
               className="h-9 w-40"
             />
+            <Button variant="outline" size="sm" disabled={checking} onClick={() => void check(key)}>
+              {checking ? "Checking…" : "Check key"}
+            </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate({ to: "/" })}>View site</Button>
           </div>
         </div>
       </header>
+      <div className="mx-auto max-w-6xl px-4 pt-4 sm:px-6">
+        <p
+          role="status"
+          aria-live="polite"
+          className={`rounded-md border px-4 py-3 text-sm ${
+            adminReady
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : "border-amber-300 bg-amber-50 text-amber-900"
+          }`}
+        >
+          {adminReady ? "✓ " : "⚠ "}{message}
+        </p>
+      </div>
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
         <Tabs defaultValue="photos">
           <TabsList className="w-full sm:w-auto">
@@ -62,7 +105,7 @@ function Admin() {
             <TabsTrigger value="rates">Rates</TabsTrigger>
             <TabsTrigger value="bookings">Bookings</TabsTrigger>
           </TabsList>
-          <TabsContent value="photos"><PhotosTab /></TabsContent>
+          <TabsContent value="photos"><PhotosTab adminReady={adminReady} /></TabsContent>
           <TabsContent value="rates"><RatesTab /></TabsContent>
           <TabsContent value="bookings"><BookingsTab /></TabsContent>
         </Tabs>
@@ -74,7 +117,7 @@ function Admin() {
 const reportError = (error: unknown) =>
   toast.error(error instanceof Error ? error.message : "Something went wrong");
 
-function PhotosTab() {
+function PhotosTab({ adminReady }: { adminReady: boolean }) {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [category, setCategory] = useState<Category>("Weddings");
   const [featured, setFeatured] = useState(false);
@@ -84,6 +127,10 @@ function PhotosTab() {
 
   const onFile = async (file?: File) => {
     if (!file) return;
+    if (!adminReady) {
+      toast.error("Check the Admin key at the top of this page first.");
+      return;
+    }
     setUploading(true);
     try {
       await uploadPhotoFile(file, category, featured);
@@ -113,14 +160,16 @@ function PhotosTab() {
             id="file"
             type="file"
             accept="image/jpeg,image/png,image/webp,image/avif"
-            disabled={uploading}
+            disabled={uploading || !adminReady}
             onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ""; }}
           />
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
         Photos and their details are stored in Cloudinary, so every visitor sees the same gallery.
-        Changing or deleting a photo needs the Admin key in the header above. Sample photos can&apos;t be edited.
+        {adminReady
+          ? " You can upload, change and delete real photos. Sample photos can't be edited."
+          : " Get a green status message at the top of this page before you can make changes."}
       </p>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {photos.map((p) => (
@@ -130,7 +179,7 @@ function PhotosTab() {
               <select
                 className={`${select} flex-1`}
                 value={p.category}
-                disabled={!p.publicId}
+                disabled={!p.publicId || !adminReady}
                 onChange={async (e) => {
                   if (!p.publicId) return;
                   try {
@@ -146,7 +195,7 @@ function PhotosTab() {
                 variant="ghost"
                 aria-label={p.featured ? "Remove from home page" : "Show on home page"}
                 title={p.featured ? "Remove from home page" : "Show on home page"}
-                disabled={!p.publicId}
+                disabled={!p.publicId || !adminReady}
                 onClick={async () => {
                   if (!p.publicId) return;
                   try {
@@ -161,7 +210,7 @@ function PhotosTab() {
                 size="icon"
                 variant="ghost"
                 aria-label="Delete"
-                disabled={!p.publicId}
+                disabled={!p.publicId || !adminReady}
                 onClick={async () => {
                   if (!p.publicId) return;
                   try {

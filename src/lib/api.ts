@@ -77,6 +77,25 @@ export function setAdminKey(value: string): void {
   if (typeof window !== "undefined") window.sessionStorage.setItem(ADMIN_KEY_STORAGE, value);
 }
 
+export interface AdminStatus {
+  cloudinaryReady: boolean;
+  adminConfigured: boolean;
+  adminValid: boolean;
+}
+
+/** Lets the admin page show exactly what is set up and whether the key is right. */
+export async function getAdminStatus(key: string): Promise<AdminStatus | null> {
+  const headers = new Headers();
+  if (key) headers.set("x-admin-key", key);
+  try {
+    const response = await fetch("/api/admin-status", { headers });
+    if (!response.ok) return null;
+    return (await response.json()) as AdminStatus;
+  } catch {
+    return null;
+  }
+}
+
 async function photoApi(path: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
   const key = getAdminKey();
