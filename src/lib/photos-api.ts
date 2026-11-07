@@ -168,13 +168,18 @@ async function uploadToCloudinary(
 }
 
 /** Delete an asset from Cloudinary via the signed Admin API. */
-async function deleteFromCloudinary(publicId: string, env: WorkerEnv): Promise<boolean> {
+async function deleteFromCloudinary(
+  publicId: string,
+  env: WorkerEnv,
+  resourceType: "image" | "video" = "image",
+): Promise<boolean> {
   const auth = cloudinaryAuthHeader(env);
   if (!auth) return false; // can't delete without API key/secret — but still remove from index
 
   try {
+    // Videos live under /video/destroy, images under /image/destroy.
     const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/destroy`,
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/${resourceType}-destroy`,
       {
         method: "POST",
         headers: {
@@ -260,10 +265,15 @@ async function deletePhoto(request: Request, env: WorkerEnv): Promise<Response> 
   const publicId = new URL(request.url).searchParams.get("publicId");
   if (!publicId) return json({ error: "Missing publicId" }, 400);
 
-  // Try to delete from Cloudinary (best-effort — index removal is what matters for the site).
-  await deleteFromCloudinary(publicId, env);
-
+  // Determine the resource type so we hit the right Cloudinary destroy endpoint.
   const idx = (await readIndex(kv)) ?? [];
+  const target = idx.find((p) => p.publicId === publicId);
+  const isVideo =
+    target?.type === "video" || (target?.url ?? "").includes(`res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/video/upload/`);
+
+  // Try to delete from Cloudinary (best-effort — index removal is what matters for the site).
+  await deleteFromCloudinary(publicId, env, isVideo ? "video" : "image");
+
   const next = idx.filter((p) => p.publicId !== publicId);
   await writeIndex(kv, next);
   return json({ ok: true });
