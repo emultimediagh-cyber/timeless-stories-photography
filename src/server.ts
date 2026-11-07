@@ -11,14 +11,16 @@ type ServerEntry = {
 /**
  * Nitro's Cloudflare runtime saves the Worker bindings on globalThis.__env__
  * at the start of every request, but its Vite service loader calls our fetch
- * handler with only the Request. Read the global as a fallback so secrets are
- * actually available here.
+ * handler with an env that may be empty or partial. Merge both sources so
+ * secrets and bindings (KV, R2, etc.) are always available.
  */
 type EnvGlobal = typeof globalThis & { __env__?: WorkerEnv };
 
 function resolveEnv(env: WorkerEnv | undefined): WorkerEnv {
-  if (env) return env;
-  return (globalThis as EnvGlobal).__env__ ?? {};
+  const globalEnv = (globalThis as EnvGlobal).__env__ ?? {};
+  // Merge: globalEnv provides bindings/secrets that Nitro didn't pass directly.
+  // env (if provided) takes precedence for keys it actually has.
+  return { ...globalEnv, ...(env ?? {}) };
 }
 
 let serverEntryPromise: Promise<ServerEntry> | undefined;
