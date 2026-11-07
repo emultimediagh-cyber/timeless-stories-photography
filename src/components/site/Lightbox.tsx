@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import type { Photo } from "@/types";
-import { cloudinaryUrl } from "@/lib/cloudinary";
 
 export function Lightbox({
   photos,
@@ -35,6 +34,7 @@ export function Lightbox({
   const photo = photos[index];
   if (!photo) return null;
   const btn = "absolute z-10 p-3 text-on-image/80 transition hover:text-on-image";
+  const isVideo = photo.type === "video";
 
   return (
     <div
@@ -56,13 +56,24 @@ export function Lightbox({
       <button aria-label="Previous" className={`${btn} left-2 md:left-6`} onClick={(e) => { e.stopPropagation(); prev(); }}>
         <ChevronLeft className="h-9 w-9" />
       </button>
-      <img
-        key={photo.id}
-        src={cloudinaryUrl(photo.url, { width: 2000, crop: "limit" })}
-        alt={photo.alt}
-        className="lb-in max-h-[88vh] max-w-[90vw] object-contain"
-        onClick={(e) => e.stopPropagation()}
-      />
+      {isVideo ? (
+        <video
+          key={photo.id}
+          src={photo.url}
+          controls
+          playsInline
+          className="lb-in max-h-[88vh] max-w-[90vw] object-contain"
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <img
+          key={photo.id}
+          src={photo.url}
+          alt={photo.alt}
+          className="lb-in max-h-[88vh] max-w-[90vw] object-contain"
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
       <button aria-label="Next" className={`${btn} right-2 md:right-6`} onClick={(e) => { e.stopPropagation(); next(); }}>
         <ChevronRight className="h-9 w-9" />
       </button>

@@ -12,7 +12,7 @@ export function MasonryGrid({ photos, onOpen }: { photos: Photo[]; onOpen?: (ind
           className="mb-4 block w-full break-inside-avoid focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={`Open ${p.alt}`}
         >
-          <PhotoImage src={p.url} alt={p.alt} ratio={p.ratio} />
+          <PhotoImage src={p.url} alt={p.alt} ratio={p.ratio} {...(p.type ? { type: p.type } : {})} />
         </button>
       ))}
     </div>

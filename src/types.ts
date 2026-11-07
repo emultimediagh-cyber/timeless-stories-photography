@@ -10,6 +10,8 @@ export interface Photo {
   /** width / height, used to reserve space before the image loads */
   ratio: number;
   featured?: boolean;
+  /** "image" (default) or "video" */
+  type?: "image" | "video";
 }
 
 export interface Package {

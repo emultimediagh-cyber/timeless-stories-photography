@@ -1,7 +1,7 @@
 import type { Booking, BookingInput, BookingStatus, Category, Package, Photo } from "@/types";
 
 /**
- * Photos live in Cloudinary and the shared list is served by /api/photos.
+ * Media is stored in Cloudflare R2 and served via /api/photos.
  * Packages and bookings are still browser-local placeholders for now.
  */
 
@@ -78,7 +78,7 @@ export function setAdminKey(value: string): void {
 }
 
 export interface AdminStatus {
-  cloudinaryReady: boolean;
+  storageReady: boolean;
   adminConfigured: boolean;
   adminValid: boolean;
 }
@@ -162,7 +162,7 @@ export async function setPhotoFeatured(publicId: string, featured: boolean): Pro
   });
 }
 
-/** Removes the photo from Cloudinary as well as from the shared list. */
+/** Removes the photo from R2 storage and the gallery index. */
 export async function deletePhoto(publicId: string): Promise<void> {
   await photoApi(`/api/photos?publicId=${encodeURIComponent(publicId)}`, { method: "DELETE" });
 }

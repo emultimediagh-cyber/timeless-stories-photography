@@ -7,7 +7,6 @@ import {
   savePackage, setAdminKey, setPhotoFeatured, updateBookingStatus, updatePhotoCategory, uploadPhotoFile,
   type AdminStatus,
 } from "@/lib/api";
-import { cloudinaryUrl } from "@/lib/cloudinary";
 import type { Booking, BookingStatus, Category, Package, Photo } from "@/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -55,8 +54,8 @@ function Admin() {
 
   const message = status === null
     ? "Could not reach the server. Refresh the page and try again."
-    : !status.cloudinaryReady
-      ? "Cloudinary keys are not set up on the server yet."
+    : !status.storageReady
+      ? "R2 storage is not configured on the server yet."
       : !status.adminConfigured
         ? "No admin password is set in Cloudflare. Add the ADMIN_PASSWORD secret — uploads and edits are disabled until then."
         : status.adminValid
@@ -134,7 +133,7 @@ function PhotosTab({ adminReady }: { adminReady: boolean }) {
     setUploading(true);
     try {
       await uploadPhotoFile(file, category, featured);
-      toast.success("Photo uploaded to Cloudinary");
+      toast.success("Photo uploaded");
       await reload();
     } catch (error) {
       reportError(error);
@@ -159,14 +158,14 @@ function PhotosTab({ adminReady }: { adminReady: boolean }) {
           <Input
             id="file"
             type="file"
-            accept="image/jpeg,image/png,image/webp,image/avif"
+            accept="image/jpeg,image/png,image/webp,image/avif,image/gif,video/mp4,video/webm,video/quicktime"
             disabled={uploading || !adminReady}
             onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ""; }}
           />
         </div>
       </div>
       <p className="text-xs text-muted-foreground">
-        Photos and their details are stored in Cloudinary, so every visitor sees the same gallery.
+        Photos and videos are stored in Cloudflare R2, so every visitor sees the same gallery.
         {adminReady
           ? " You can upload, change and delete real photos. Sample photos can't be edited."
           : " Get a green status message at the top of this page before you can make changes."}
@@ -174,7 +173,13 @@ function PhotosTab({ adminReady }: { adminReady: boolean }) {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
         {photos.map((p) => (
           <div key={p.id} className="overflow-hidden rounded-md border border-border bg-card">
-            <div className="aspect-square bg-muted"><img src={cloudinaryUrl(p.url, { width: 400, height: 400, crop: "fill" })} alt={p.alt} loading="lazy" className="h-full w-full object-cover" /></div>
+            <div className="aspect-square bg-muted">
+              {p.type === "video" ? (
+                <video src={p.url} className="h-full w-full object-cover" muted />
+              ) : (
+                <img src={p.url} alt={p.alt} loading="lazy" className="h-full w-full object-cover" />
+              )}
+            </div>
             <div className="flex items-center gap-1 p-2">
               <select
                 className={`${select} flex-1`}
