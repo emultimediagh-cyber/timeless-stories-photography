@@ -9,6 +9,8 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
+import { createMiddleware } from "@tanstack/react-start";
+import { getRouterInstance } from "@tanstack/start-client-core";
 import { useEffect, type ReactNode } from "react";
 
 import { SiteHeader } from "@/components/site/SiteHeader";
@@ -16,6 +18,27 @@ import { SiteFooter } from "@/components/site/SiteFooter";
 import { Toaster } from "@/components/ui/sonner";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+
+/**
+ * The Worker entry generates a per-request CSP nonce and forwards it on the
+ * private `x-csp-nonce` request header. This root-route server middleware runs
+ * inside the TanStack Start context (where the per-request router exists), so it
+ * can tag `router.options.ssr.nonce`. React's SSR then emits matching
+ * `<script nonce>` / `<style nonce>` tags, letting the response CSP keep
+ * `script-src`/`style-src` strict (no `'unsafe-inline'`) while still allowing
+ * the framework's own inline hydration code.
+ */
+const cspNonceMiddleware = createMiddleware().server(async ({ next, request }) => {
+  const nonce = request.headers.get("x-csp-nonce");
+  if (nonce) {
+    const router = await getRouterInstance();
+    router.options.ssr = {
+      ...(router.options.ssr ?? {}),
+      nonce,
+    } as NonNullable<typeof router.options.ssr>;
+  }
+  return next();
+});
 
 function NotFoundComponent() {
   return (
@@ -78,6 +101,9 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
+  // Runs on every page request (SSR), inside the Start context where the
+  // per-request router is available. Tags the router with the CSP nonce.
+  server: { middleware: [cspNonceMiddleware] },
   head: () => ({
     // Replace these placeholders with the app's name and description when first building the app.
     // Each content route, / included, must still set its own head(). Never add og:image or
