@@ -67,6 +67,27 @@ export default {
   async fetch(request: Request, env: WorkerEnv | undefined, ctx: unknown) {
     try {
       const workerEnv = resolveEnv(env);
+
+      // Hide the admin panel: it must only be served on the dedicated admin
+      // subdomain. Everywhere else (main domain, *.workers.dev) /admin returns 404.
+      const url = new URL(request.url);
+      const host = url.host.toLowerCase();
+      const adminHost =
+        (typeof workerEnv["ADMIN_HOST"] === "string" && workerEnv["ADMIN_HOST"]) ||
+        "admin.eventsmultimediagh.com";
+      const pathname = url.pathname;
+      const isAdminPath = pathname === "/admin" || pathname.startsWith("/admin/");
+      if (isAdminPath && host !== adminHost) {
+        return new Response("Not Found", {
+          status: 404,
+          headers: { "content-type": "text/plain; charset=utf-8" },
+        });
+      }
+      // On the admin subdomain, send the bare root straight to the panel.
+      if (host === adminHost && pathname === "/") {
+        return Response.redirect(`${url.origin}/admin`, 302);
+      }
+
       // Photo catalog API is handled here so it can use the Worker's private
       // secrets. Everything else goes to the SSR app.
       const apiResponse = await handlePhotosApi(request, workerEnv);
